@@ -10,15 +10,16 @@ class Price:
     def __init__(self, price_usd_ht: str, quantity: int):
         self.quantity = quantity
         self.price_usd_ht = price_usd_ht
+        
+    def __str__(self) -> str:
+        # prend le rôle de ton "to_string" et permet de faire les conversions plus pythoniquement
+        return f"{self.quantity} pcs à \n
+        str(round(self.price_usd_ht, 2)) + "$ H.T - " \
+               + str(round(self.price_eur_ht, 2)) + "€ H.T - " \
+               + str(round(self.price_eur_ttc, 2)) + "€ T.T.C"}"
 
-    @property
-    def quantity(self) -> int:
-        return self._quantity
-
-    @quantity.setter
-    def quantity(self, value: int):
-        self._quantity = value
-
+    # En soit pas besoin de faire des methodes pour quantity \°u°/
+        
     @property
     def price_usd_ht(self) -> float:
         return self._price_usd_ht
