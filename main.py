@@ -1,8 +1,8 @@
-from scrapping import TaydaProductList
+from scrapping import TaydaProduct
 
 
 if __name__ == '__main__':
-    provider = TaydaProductList()
+    provider = TaydaProduct()
 
     print(provider.get('A-5158-CST-UV1'))
     print(provider.get('A-5158'))

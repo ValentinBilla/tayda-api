@@ -29,7 +29,7 @@ class Product:
 
 
 @dataclass
-class TaydaProductList:
+class TaydaProduct:
     _URL: ClassVar[str] = "https://www.taydaelectronics.com/" \
                          "catalogsearch/result/"
     _NAME_TAG: ClassVar[str] = ".product-info-main  .page-title"
