@@ -7,7 +7,7 @@ from currency_converter import CurrencyConverter
 class Price:
     tva: float = 1.2
 
-    def __init__(self, price_usd_ht: str, quantity: int):
+    def __init__(self, price_usd_ht: float, quantity: int):
         self.quantity = quantity
         self.price_usd_ht = price_usd_ht
 
