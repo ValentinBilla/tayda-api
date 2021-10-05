@@ -1,11 +1,9 @@
-from product import Product
-
-
-def print_product(sku):
-    print(Product.get(sku).to_string())
+from scrapping import TaydaProductList
 
 
 if __name__ == '__main__':
-    print_product('A-5158-CST-UV1')
-    print_product('A-5158')
-    print_product('A-5174')
+    provider = TaydaProductList()
+
+    print(provider.get('A-5158-CST-UV1'))
+    print(provider.get('A-5158'))
+    print(provider.get('A-5174'))
