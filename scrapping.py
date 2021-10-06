@@ -6,6 +6,7 @@ import re
 # additional librairies
 import requests
 import bs4
+from mouser import api
 
 # project files
 from pricing import Offer
@@ -88,4 +89,47 @@ class TaydaProductProvider(Provider):
 
     def get(self, sku: str) -> Product:
         self.init(f'{self._URL}?q={sku}')
+        return Product(sku=sku, name=self.name, description=self.description, offers_list=self.offers_list)
+
+
+class MouserProductProvider:
+    _provider: ClassVar[api.MouserPartSearchRequest] = None
+    _response: ClassVar[object] = None
+
+    _ARG_ACTION: ClassVar[str] = 'partnumber'
+
+    _MANUFACTURER_TAG: ClassVar[str] = "Manufacturer"
+    _MANUFACTURER_PART_NUMBER: ClassVar[str] = "ManufacturerPartNumber"
+
+    _DESCRIPTION_TAG: ClassVar[str] = 'Description'
+
+    _PRICE_TAG: ClassVar[str] = 'Price'
+    _PRICE_LIST_TAG: ClassVar[str] = "PriceBreaks"
+    _QUANTITY_TAG: ClassVar[str] = "Quantity"
+
+    @property
+    def name(self) -> str:
+        return f'{self._response[self._MANUFACTURER_TAG]} {self._response[self._MANUFACTURER_PART_NUMBER]}'
+
+    @property
+    def description(self) -> str:
+        return self._response[self._DESCRIPTION_TAG]
+
+    @property
+    def offers_list(self) -> List[Offer]:
+        offers_list = list()
+        for mouser_offer in self._response[self._PRICE_LIST_TAG]:
+            quantity = mouser_offer[self._QUANTITY_TAG]
+            price = float(mouser_offer[self._PRICE_TAG].strip(' €').replace(',', '.'))
+            offers_list.append(Offer(quantity=quantity, price_usd_ht=price))
+        return offers_list
+
+    def init(self, sku):
+        self._provider = api.MouserPartSearchRequest(self._ARG_ACTION)
+        if not self._provider.part_search(sku):
+            return None
+        self._response = self._provider.get_clean_response()
+
+    def get(self, sku: str) -> Product:
+        self.init(sku)
         return Product(sku=sku, name=self.name, description=self.description, offers_list=self.offers_list)
