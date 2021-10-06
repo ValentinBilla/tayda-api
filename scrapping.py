@@ -1,15 +1,14 @@
 # built-in librairies
-from __future__ import annotations
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, List
 from dataclasses import dataclass
 import re
-
-# project files
-from pricing import Offer
 
 # additional librairies
 import requests
 import bs4
+
+# project files
+from pricing import Offer
 
 
 @dataclass
@@ -17,7 +16,7 @@ class Product:
     sku: str
     name: str
     description: str
-    offers_list: list[Offer]
+    offers_list: List[Offer]
 
     @property
     def formatted_name(self):
@@ -29,23 +28,31 @@ class Product:
 
 
 @dataclass
-class TaydaProduct:
-    _URL: ClassVar[str] = "https://www.taydaelectronics.com/" \
-                         "catalogsearch/result/"
-    _NAME_TAG: ClassVar[str] = ".product-info-main  .page-title"
-    _DESCRIPTION_TAG: ClassVar[str] = '.wrapper-details .value'
-    _PRICE_TAG: ClassVar[str] = '.product-info-main .price-box .price'
-    _PRICE_LIST_TAG: ClassVar[str] = ".product-info-main ul.prices-tier li.item"
-
+class Provider:
     _current_url: Optional[str] = None
     _current_request: Optional[requests.models.Response] = None
     _current_page: Optional[bs4.BeautifulSoup] = None
+
+    def init(self, url):
+        self._current_url = url
+        self._current_request = self.get_request()
+        self._current_page = self.get_page()
 
     def get_request(self) -> requests.models.Response:
         return requests.get(self._current_url)
 
     def get_page(self) -> bs4.BeautifulSoup:
         return bs4.BeautifulSoup(self._current_request.content, 'html.parser')
+
+
+@dataclass
+class TaydaProductProvider(Provider):
+    _URL: ClassVar[str] = "https://www.taydaelectronics.com/" \
+                         "catalogsearch/result/"
+    _NAME_TAG: ClassVar[str] = ".product-info-main  .page-title"
+    _DESCRIPTION_TAG: ClassVar[str] = '.wrapper-details .value'
+    _PRICE_TAG: ClassVar[str] = '.product-info-main .price-box .price'
+    _PRICE_LIST_TAG: ClassVar[str] = ".product-info-main ul.prices-tier li.item"
 
     @property
     def name(self) -> str:
@@ -56,7 +63,7 @@ class TaydaProduct:
         return self._current_page.select_one(self._DESCRIPTION_TAG).text.strip()
 
     @property
-    def offers_list(self) -> list[Offer]:
+    def offers_list(self) -> List[Offer]:
         offers_list = list()
 
         # The initial price is considered as an offer for 1 item
@@ -80,13 +87,5 @@ class TaydaProduct:
         return offers_list
 
     def get(self, sku: str) -> Product:
-        self._current_url = f'{self._URL}?q={sku}'
-        self._current_request = self.get_request()
-        self._current_page = self.get_page()
-
-        return Product(
-            sku=sku,
-            name=self.name,
-            description=self.description,
-            offers_list=self.offers_list
-        )
+        self.init(f'{self._URL}?q={sku}')
+        return Product(sku=sku, name=self.name, description=self.description, offers_list=self.offers_list)
