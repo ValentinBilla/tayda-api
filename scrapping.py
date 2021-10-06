@@ -1,31 +1,18 @@
 # built-in librairies
+from __future__ import annotations
 from typing import ClassVar, Optional, List
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 import re
+
 
 # additional librairies
 import requests
+import mouser
 import bs4
-from mouser import api
 
 # project files
-from pricing import Offer
-
-
-@dataclass
-class Product:
-    sku: str
-    name: str
-    description: str
-    offers_list: List[Offer]
-
-    @property
-    def formatted_name(self):
-        return f"{self.sku} | {self.name}"
-
-    def __str__(self):
-        offers_str = '\n'.join(map(str, self.offers_list))
-        return f"{self.formatted_name}\n{offers_str}"
+import product
 
 
 @dataclass
@@ -46,8 +33,39 @@ class Provider:
         return bs4.BeautifulSoup(self._current_request.content, 'html.parser')
 
 
+class Product(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def offers_list(self) -> str:
+        pass
+
+    @abstractmethod
+    def init(self, sku: str) -> None:
+        pass
+
+    def get(self, sku: str) -> product.Product:
+        self.init(sku)
+
+        return product.Product(
+            sku=sku,
+            name=self.name,
+            description=self.description,
+            offers_list=self.offers_list
+        )
+
+
 @dataclass
-class TaydaProductProvider(Provider):
+class TaydaProductProvider(Provider, Product):
     _URL: ClassVar[str] = "https://www.taydaelectronics.com/" \
                          "catalogsearch/result/"
     _NAME_TAG: ClassVar[str] = ".product-info-main  .page-title"
@@ -64,14 +82,14 @@ class TaydaProductProvider(Provider):
         return self._current_page.select_one(self._DESCRIPTION_TAG).text.strip()
 
     @property
-    def offers_list(self) -> List[Offer]:
+    def offers_list(self) -> List[product.Offer]:
         offers_list = list()
 
         # The initial price is considered as an offer for 1 item
         default_price_str = self._current_page.select_one(self._PRICE_TAG).text
         default_price = float(default_price_str.strip('$'))
         offers_list.append(
-            Offer(quantity=1, price_usd_ht=default_price))
+            product.Offer(quantity=1, price_ht=default_price, currency='USD'))
 
         # We go through all the proposed special offers and process them
         html_offers_list = self._current_page.select(self._PRICE_LIST_TAG)
@@ -83,53 +101,50 @@ class TaydaProductProvider(Provider):
             price = float(price_str.strip('$'))
 
             offers_list.append(
-                Offer(quantity=quantity, price_usd_ht=price))
+                product.Offer(quantity=quantity, price_ht=price, currency='USD')
+            )
 
         return offers_list
 
-    def get(self, sku: str) -> Product:
-        self.init(f'{self._URL}?q={sku}')
-        return Product(sku=sku, name=self.name, description=self.description, offers_list=self.offers_list)
 
-
-class MouserProductProvider:
-    _provider: ClassVar[api.MouserPartSearchRequest] = None
+class MouserProductProvider(Product):
+    _provider: ClassVar[mouser.api.MouserPartSearchRequest] = None
     _response: ClassVar[object] = None
 
-    _ARG_ACTION: ClassVar[str] = 'partnumber'
+    _ARG_ACTION: ClassVar[str] = "partnumber"
 
     _MANUFACTURER_TAG: ClassVar[str] = "Manufacturer"
     _MANUFACTURER_PART_NUMBER: ClassVar[str] = "ManufacturerPartNumber"
 
-    _DESCRIPTION_TAG: ClassVar[str] = 'Description'
+    _DESCRIPTION_TAG: ClassVar[str] = "Description"
 
-    _PRICE_TAG: ClassVar[str] = 'Price'
+    _PRICE_TAG: ClassVar[str] = "Price"
     _PRICE_LIST_TAG: ClassVar[str] = "PriceBreaks"
     _QUANTITY_TAG: ClassVar[str] = "Quantity"
 
     @property
     def name(self) -> str:
-        return f'{self._response[self._MANUFACTURER_TAG]} {self._response[self._MANUFACTURER_PART_NUMBER]}'
+        return f'{self._response[self._MANUFACTURER_TAG]} ' \
+               f'{self._response[self._MANUFACTURER_PART_NUMBER]}'
 
     @property
     def description(self) -> str:
         return self._response[self._DESCRIPTION_TAG]
 
     @property
-    def offers_list(self) -> List[Offer]:
+    def offers_list(self) -> List[product.Offer]:
         offers_list = list()
         for mouser_offer in self._response[self._PRICE_LIST_TAG]:
             quantity = mouser_offer[self._QUANTITY_TAG]
-            price = float(mouser_offer[self._PRICE_TAG].strip(' €').replace(',', '.'))
-            offers_list.append(Offer(quantity=quantity, price_usd_ht=price))
+            price_str = mouser_offer[self._PRICE_TAG].strip(' €')
+            price = float(price_str.replace(',', '.'))
+            offers_list.append(
+                product.Offer(quantity=quantity, price_ht=price, currency='USD')
+            )
         return offers_list
 
     def init(self, sku):
-        self._provider = api.MouserPartSearchRequest(self._ARG_ACTION)
+        self._provider = mouser.api.MouserPartSearchRequest(self._ARG_ACTION)
         if not self._provider.part_search(sku):
             return None
         self._response = self._provider.get_clean_response()
-
-    def get(self, sku: str) -> Product:
-        self.init(sku)
-        return Product(sku=sku, name=self.name, description=self.description, offers_list=self.offers_list)
